@@ -21,7 +21,7 @@ def main():
 
     lvl_grid = model.define_grid(atm_height = 200, swiping_height = 1)
 
-    model.get_atmoshpere_profils()
+    model.get_atmoshperic_profiles()
 
     model.set_reflection_type(0)
 
@@ -143,8 +143,8 @@ class RT_model_1D(object):
         if azimuth < 0 or azimuth >= 360:
             raise ValueError('The angle cannot be negative or >= 360')
 
-        idx, height = RT_model_1D.argclosest(RT_model_1D.km2m(height),
-                                self.height_array, return_value = True)
+        idx, height = f.argclosest(f.km2m(height), self.height_array,
+                                    return_value = True)
         self.receiver_height = height
         self.receiver_elevation = (elevation + 90) % 180
         self.receiver_azimuth = (azimuth + 180) % 360
@@ -201,8 +201,8 @@ class RT_model_1D(object):
         if swiping_height < 0:
             raise ValueError('The swiping height must be positive')
 
-        atm_height = RT_model_1D.km2m(atm_height)
-        self.swiping_height = RT_model_1D.km2m(swiping_height)
+        atm_height = f.km2m(atm_height)
+        self.swiping_height = f.km2m(swiping_height)
         self.height_array = np.arange(0, atm_height + self.swiping_height,
                                     self.swiping_height)
 
@@ -224,16 +224,15 @@ class RT_model_1D(object):
         if height < 0:
             raise ValueError('The height cannot be negative')
 
-        idx, height = RT_model_1D.argclosest(height,
-                                self.height_array, return_value = True)
+        idx, height = f.argclosest(height, self.height_array,
+                                    return_value = True)
 
         tau = 0
         for lvl in np.arange(len(self.height_array)-1,idx-1,-1):
 
             tau += (self.absorption_coeff_field[lvl] + \
                 self.scattering_coeff_field[lvl]) * \
-                self.swiping_height / \
-                np.cos(RT_model_1D.deg2rad(self.sun_elevation)) # revert to viewing direct
+                self.swiping_height / np.cos(f.deg2rad(self.sun_elevation))
 
         I_dir = self.sun_intensity * np.exp(- tau)
 
@@ -241,18 +240,16 @@ class RT_model_1D(object):
 
 
     def scattering_source_term(self, height):
-        idx, height = RT_model_1D.argclosest(height,
-                                self.height_array, return_value = True)
+        idx, height = f.argclosest(height, self.height_array,
+                                    return_value = True)
 
-        angle = RT_model_1D.calc_scattering_angle(self.sun_elevation,
-                                                self.receiver_elevation,
-                                                self.sun_azimuth,
-                                                self.receiver_azimuth)
+        angle = f.calc_scattering_angle(self.sun_elevation,
+            self.receiver_elevation,self.sun_azimuth, self.receiver_azimuth)
 
         I_scat = (1 - np.exp(-self.scattering_coeff_field[idx] *
                              self.swiping_height)) * \
                     RT_model_1D.calc_direct_beam_intensity(self, height) *\
-                    RT_model_1D.phasefunc(angle)
+                    f.phasefunc(angle)
         return I_scat
 
 
@@ -260,7 +257,7 @@ class RT_model_1D(object):
         """Clalculates the extinction term based on the given intensity and the
         absorbtion and scattering coefficent at the given height. """
 
-        id = RT_model_1D.argclosest(height, self.height_array)
+        id = f.argclosest(height, self.height_array)
         k = self.absorption_coeff_field[id] + self.scattering_coeff_field[id]
 
         I_ext = intensity * np.exp(-k * self.swiping_height)
@@ -268,16 +265,15 @@ class RT_model_1D(object):
         return I_ext
 
 
-    def get_atmoshpere_profils(self):
+    def get_atmoshperic_profiles(self):
         """ Returns atm fields of the absorption and scattering coefficent
         depending on the readin_densprofile """
         self.absorption_coeff_field = np.empty((len(self.height_array)))
         self.scattering_coeff_field = np.empty((len(self.height_array)))
-        dens_profil, dens_profil_height = RT_model_1D.readin_densprofile()
+        dens_profil, dens_profil_height = f.readin_densprofile()
 
         for idx, height in enumerate(self.height_array):
-            dens = dens_profil[RT_model_1D.argclosest(height,
-                            RT_model_1D.km2m(dens_profil_height))]
+            dens = dens_profil[f.argclosest(height, f.km2m(dens_profil_height))]
             self.absorption_coeff_field[idx] = dens * self.absorption_cross_sec
             self.scattering_coeff_field[idx] = dens * self.scattering_cross_sec
 
@@ -288,7 +284,7 @@ class RT_model_1D(object):
         """create an empty array where the field will be evaluated"""
         height = self.receiver_height
         angle = (self.receiver_elevation + 90) % 180 # revert in viewing direct
-        idx = RT_model_1D.argclosest(self.receiver_height, self.height_array)
+        idx = f.argclosest(self.receiver_height, self.height_array)
 
         if angle < 90:
             # from rec (at idx) to TOA (len(h.a.))
@@ -313,19 +309,19 @@ class RT_model_1D(object):
         angle = (self.receiver_elevation + 90) % 180 # revert in viewing direct
         # Looking at the sky
         if angle < 90:
-            I_init = self.sun_intensity * RT_model_1D.delta_func(
+            I_init = self.sun_intensity * f.delta_func(
                 self.sun_elevation - self.receiver_elevation) * \
-                RT_model_1D.delta_func(self.sun_azimuth - self.receiver_azimuth)
+                f.delta_func(self.sun_azimuth - self.receiver_azimuth)
 
         # Looking at the ground
         elif angle > 90:
             I_ground = RT_model_1D.calc_direct_beam_intensity(self, 0)
             I_lambert = I_ground * self.ground_albedo * \
-                np.cos(RT_model_1D.deg2rad(self.receiver_elevation))
+                np.cos(f.deg2rad(self.receiver_elevation))
             I_specular = I_ground * self.ground_albedo * \
-                RT_model_1D.delta_func((self.sun_elevation -
+                f.delta_func((self.sun_elevation -
                 self.receiver_elevation + 90) % 180) * \
-                RT_model_1D.delta_func(self.sun_azimuth - self.receiver_azimuth)
+                f.delta_func(self.sun_azimuth - self.receiver_azimuth)
 
             I_init = (1 - self.reflection_type) * I_lambert + \
                      self.reflection_type * I_specular
@@ -355,106 +351,10 @@ class RT_model_1D(object):
         return np.flipud(rad_field) if angle < 90 else rad_field
 
 
-    @staticmethod
-    def readin_densprofile():
-        PATH = '/Users/jonpetersen/data/data_BA/'
-        MSIS_DATEI = 'MSIS/MSIS_18072300_new.txt'
-        with open(PATH + MSIS_DATEI) as msis:
-            MSISdata = np.genfromtxt(msis, skip_header=11)
-        # 0 Height, km | 1 O, cm-3 | 2 N2, cm-3 | 3 O2, cm-3 |
-        # 4 Mass_density, g/cm-3 | 5 Ar, cm-3
-        MSISalt = MSISdata[:,0]        # Altitude
-        MSISdens = (MSISdata[:,1] + MSISdata[:,2] + MSISdata[:,3] +
-            MSISdata[:,4]) * 10**6 # add desitys and convert to SI units
-        return MSISdens, MSISalt
-
-    @staticmethod
-    def phasefunc(ang, g = 0.7):
-        """Phasefunction after Henyey Greenstein.
-        g must be between -1 (full backscatter) and 1 (forwardscattering)."""
-
-        if type(ang) not in [int, float]:
-            raise TypeError('The angle must be a real number between 0 and 180')
-        if ang < 0 and ang > 180:
-            raise ValueError('The angle must be positive and below 180')
-        if type(g) not in [int, float]:
-            raise TypeError('g be a real number between -1 and 1')
-        if g < -1 and g > 1:
-            raise ValueError('g must be between -1 and 1')
-
-        return (1 - g**2) / (1 + g**2 - 2 * g * np.cos(ang) )**(3/2)
-
-    @staticmethod
-    def calc_scattering_angle(theta_in, theta_out, phi_in, phi_out):
-        """Calculates the angle between the incoming and outgoing pencilbeam.
-        It is needed for the Phasefunction. Returns the angle in deg.
-        After Stamnes eqn. 3.22.
-        """
-        if type(theta_in) not in [int, float]:
-            raise TypeError('Theta in must be a real number between 0 and 180')
-        if theta_in < 0 and theta_in > 180:
-            raise ValueError('Theta in cannot be negative or greater 180')
-        if type(theta_out) not in [int, float]:
-            raise TypeError('Theta out must be a real number between 0 and 180')
-        if theta_out < 0 and theta_out > 180:
-            raise ValueError('Theta out cannot be negative or greater 180')
-        if type(phi_in) not in [int, float]:
-            raise TypeError('Phi in must be a real number between 0 and 360')
-        if phi_in < 0 and phi_in >= 360:
-            raise ValueError('Phi cannot be negative or >= 360')
-        if type(phi_out) not in [int, float]:
-            raise TypeError('Phi out must be a real number between 0 and 360')
-        if phi_out < 0 and phi_out >= 360:
-            raise ValueError('Phi out cannot be negative or >= 360')
-
-        angle = np.cos(RT_model_1D.deg2rad(theta_out)) * \
-                np.cos(RT_model_1D.deg2rad(theta_in)) + \
-                np.sin(RT_model_1D.deg2rad(theta_out)) * \
-                np.sin(RT_model_1D.deg2rad(theta_in)) * \
-                np.cos(RT_model_1D.deg2rad(phi_in - phi_out))
-
-        return float( RT_model_1D.rad2deg( np.arccos(angle) ) )
-
     def print_testvals(self):
         """prints an attribute which must be set here. It's for testing."""
         print(self.sun_azimuth)
 
-    @staticmethod
-    def argclosest(value, array, return_value = False):
-        """Returns the index in ``array`` which is closest to ``value``."""
-        idx = np.abs(array - value).argmin()
-        return (idx, array[idx].item()) if return_value else idx
-
-    @staticmethod
-    def deg2rad(deg):
-        """Converts degress to radian"""
-        return deg * np.pi / 180
-
-    @staticmethod
-    def rad2deg(rad):
-        """Converts degress to radian"""
-        return rad * 180 / np.pi
-
-    @staticmethod
-    def km2m(km):
-        """Converts km to m"""
-        return km * 1000
-
-    @staticmethod
-    def m2km(m):
-        """Converts m to km"""
-        return m / 1000
-
-    @staticmethod
-    def delta_func(n):
-        """ Delta function """
-        if type(n) not in [int, float]:
-            raise TypeError('Only numbers can be an input!')
-
-        if n == 0:
-            return 1
-        else:
-            return 0
 
 if __name__ == '__main__':
     main()
