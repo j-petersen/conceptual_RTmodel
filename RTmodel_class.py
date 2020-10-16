@@ -9,11 +9,11 @@ from submodules import plotting_routines as pr
 
 def main():
     # Control parameters
-    sun_ele, sun_azi = 45, 0   # position in sky [degree, 0° = zenith]
+    sun_ele, sun_azi = 45, 180   # position in sky [degree, 0° = zenith]
     sun_intensity = 1000       # intensity of the sun [W/m2sr]
 
     receiver_height = 0   # height of the receiver [km]
-    receiver_elevation_angle = 135  # viewing angle [degree, 180° = upward rad]
+    receiver_elevation_angle = 45  # viewing angle [degree, 180° = upward rad]
     receiver_azimuth_angle = 180
 
 
@@ -22,6 +22,7 @@ def main():
     lvl_grid = model.define_grid(atm_height = 200, swiping_height = 1)
 
     model.get_atmoshperic_profiles()
+    model.set_atmosheric_temp_profile()
 
     model.set_reflection_type(0)
 
@@ -33,8 +34,9 @@ def main():
 
 
     rad_field = model.evaluate_radiation_field()
-    #model.print_testvals()
     print(rad_field)
+
+    # model.print_testvals()
 
     int_grid = np.empty((len(lvl_grid)))
     source_grid = np.empty((len(lvl_grid)))
@@ -43,7 +45,6 @@ def main():
         int_grid[id] = model.calc_direct_beam_intensity(int(lvl))
         source_grid[id] = model.scattering_source_term(lvl)
 
-    #print(int_grid)
 
     if False:
         ty.plots.styles.use(["typhon", 'typhon-dark'])
@@ -57,6 +58,9 @@ def main():
 
 class RT_model_1D(object):
     """docstring for RT_model_1D."""
+    c_0 = 299_792_458       # m/s
+    h = 6.6262*10**(-34)    # J s
+    kb = 1.3805*10**(-23)   # J K^-1
 
     def __init__(self):
         super().__init__()
@@ -102,6 +106,7 @@ class RT_model_1D(object):
             raise ValueError('The wavelength cannot be negative')
 
         self.wavelength = wavelength
+
 
     def set_reflection_type(self, reflection_type = 0):
         """Set the reflection type for the model
@@ -176,7 +181,7 @@ class RT_model_1D(object):
             raise ValueError('The azimuth cannot be negative or >= 360')
 
         self.sun_intensity = intensity
-        self.sun_elevation = (elevation + 90) % 90
+        self.sun_elevation = (elevation + 90) % 180
         self.sun_azimuth = (azimuth + 180) % 360
 
 
@@ -207,6 +212,34 @@ class RT_model_1D(object):
                                     self.swiping_height)
 
         return self.height_array
+
+
+    def get_atmoshperic_profiles(self):
+        """ Returns atm fields of the absorption and scattering coefficent
+        depending on the readin_densprofile """
+        self.absorption_coeff_field = np.empty((len(self.height_array)))
+        self.scattering_coeff_field = np.empty((len(self.height_array)))
+        dens_profile_height, dens_profile = f.readin_densprofile()
+
+        for idx, height in enumerate(self.height_array):
+            dens = dens_profile[f.argclosest(height,
+                                f.km2m(dens_profile_height))]
+            self.absorption_coeff_field[idx] = dens * self.absorption_cross_sec
+            self.scattering_coeff_field[idx] = dens * self.scattering_cross_sec
+
+        return self.absorption_coeff_field, self.scattering_coeff_field
+
+
+    def set_atmosheric_temp_profile(self):
+        """DocString"""
+        self.temp_field = np.empty((len(self.height_array)))
+        temp_profile_height, temp_profile = f.readin_tempprofile()
+
+        for idx, height in enumerate(self.height_array):
+            self.temp_field[idx] = temp_profile[f.argclosest(height,
+                                                f.km2m(temp_profile_height))]
+
+        return self.temp_field
 
 
     def calc_direct_beam_intensity(self, height):
@@ -253,6 +286,14 @@ class RT_model_1D(object):
         return I_scat
 
 
+    def plank_source_term(self, height):
+        idx, height = f.argclosest(height, self.height_array,
+                                    return_value = True)
+        temp = self.temp_field[idx]
+
+        return f.plank_wavelength(self.wavelength, temp)
+
+
     def extinction_term(self, intensity, height):
         """Clalculates the extinction term based on the given intensity and the
         absorbtion and scattering coefficent at the given height. """
@@ -263,21 +304,6 @@ class RT_model_1D(object):
         I_ext = intensity * np.exp(-k * self.swiping_height)
 
         return I_ext
-
-
-    def get_atmoshperic_profiles(self):
-        """ Returns atm fields of the absorption and scattering coefficent
-        depending on the readin_densprofile """
-        self.absorption_coeff_field = np.empty((len(self.height_array)))
-        self.scattering_coeff_field = np.empty((len(self.height_array)))
-        dens_profil, dens_profil_height = f.readin_densprofile()
-
-        for idx, height in enumerate(self.height_array):
-            dens = dens_profil[f.argclosest(height, f.km2m(dens_profil_height))]
-            self.absorption_coeff_field[idx] = dens * self.absorption_cross_sec
-            self.scattering_coeff_field[idx] = dens * self.scattering_cross_sec
-
-        return self.absorption_coeff_field, self.scattering_coeff_field
 
 
     def create_reciever_viewing_field(self):
@@ -303,7 +329,7 @@ class RT_model_1D(object):
         return  height_at_rad_field
 
 
-    def rad_field_initial_candition(self):
+    def rad_field_initial_condition(self):
         """Returns the starting value based on where the reciever is looking"""
 
         angle = (self.receiver_elevation + 90) % 180 # revert in viewing direct
@@ -340,12 +366,13 @@ class RT_model_1D(object):
         height_at_rad_field = RT_model_1D.create_reciever_viewing_field(self)
         rad_field = np.empty((len(height_at_rad_field)))
 
-        rad_field[0] = RT_model_1D.rad_field_initial_candition(self)
+        rad_field[0] = RT_model_1D.rad_field_initial_condition(self)
 
         for id, height in enumerate(height_at_rad_field[1:]):
             # id starts at 0 for idx 1 from height at rad field!
             rad_field[id+1] = RT_model_1D.extinction_term(self, rad_field[id],
-                    height) + RT_model_1D.scattering_source_term(self, height)
+                    height) + RT_model_1D.scattering_source_term(self, height) \
+                    + RT_model_1D.plank_source_term(self, height)
 
         # invert the rad_field for the uplooking case
         return np.flipud(rad_field) if angle < 90 else rad_field
@@ -353,7 +380,7 @@ class RT_model_1D(object):
 
     def print_testvals(self):
         """prints an attribute which must be set here. It's for testing."""
-        print(self.sun_azimuth)
+        print(self.temp_field)
 
 
 if __name__ == '__main__':

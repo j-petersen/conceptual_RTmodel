@@ -11,7 +11,22 @@ def readin_densprofile():
     MSISalt = MSISdata[:,0]        # Altitude
     MSISdens = (MSISdata[:,1] + MSISdata[:,2] + MSISdata[:,3] +
         MSISdata[:,4]) * 10**6 # add desitys and convert to SI units
-    return MSISdens, MSISalt
+    return MSISalt, MSISdens
+
+
+def readin_tempprofile():
+    PATH = '/Users/jonpetersen/data/data_BA/'
+    FILE = 'T_Fit_54N_Tab.txt'
+    with open(PATH + FILE) as f:
+        data = np.genfromtxt(f, skip_header = 11, usecols = None)
+
+    altitude = np.empty((len(data)))
+    mean_temp = np.empty((len(data)))
+    for id, row in enumerate(data):
+        altitude[id] = row[0]
+        mean_temp[id] = np.mean(row[1:])
+
+    return altitude, mean_temp
 
 
 def phasefunc(ang, g = 0.7):
@@ -52,13 +67,13 @@ def calc_scattering_angle(theta_in, theta_out, phi_in, phi_out):
     if phi_out < 0 and phi_out >= 360:
         raise ValueError('Phi out cannot be negative or >= 360')
 
-    angle = np.cos(RT_model_1D.deg2rad(theta_out)) * \
-            np.cos(RT_model_1D.deg2rad(theta_in)) + \
-            np.sin(RT_model_1D.deg2rad(theta_out)) * \
-            np.sin(RT_model_1D.deg2rad(theta_in)) * \
-            np.cos(RT_model_1D.deg2rad(phi_in - phi_out))
+    angle = np.cos(deg2rad(theta_out)) * \
+            np.cos(deg2rad(theta_in)) + \
+            np.sin(deg2rad(theta_out)) * \
+            np.sin(deg2rad(theta_in)) * \
+            np.cos(deg2rad(phi_in - phi_out))
 
-    return float( RT_model_1D.rad2deg( np.arccos(angle) ))
+    return float(rad2deg(np.arccos(angle)))
 
 
 def argclosest(value, array, return_value = False):
@@ -76,6 +91,36 @@ def delta_func(n):
         return 1
     else:
         return 0
+
+
+def plank_freq(freq, temp):
+    """ Returns the intensity of electromagnetic radiation at the frequency
+    (freq) emitted by a black body in thermal equilibrium at a given
+    temperature (temp).
+    """
+    c_0 = 299_792_458       # m/s
+    h = 6.6262*10**(-34)    # J s
+    kb = 1.3805*10**(-23)   # J K^-1
+
+    factor = np.exp((h * freq) / (kb * temp))
+    B = 2 * h * freq**3 / c_0**2  *  1 / (factor - 1)
+
+    return B
+
+
+def plank_wavelength(lam, temp):
+    """ Returns the intensity of electromagnetic radiation at the wavelength
+    (lam) emitted by a black body in thermal equilibrium at a given
+    temperature (temp).
+    """
+    c_0 = 299_792_458       # m/s
+    h = 6.6262*10**(-34)    # J s
+    kb = 1.3805*10**(-23)   # J K^-1
+
+    factor = np.exp((h * c_0) / (lam * kb * temp))
+    B = 2 * h * c_0**2 / lam**5  *  1 / (factor - 1)
+
+    return B
 
 
 """
@@ -99,3 +144,6 @@ def km2m(km):
 def m2km(m):
     """Converts m to km"""
     return m / 1000
+
+if __name__ == '__main__':
+    readin_tempprofile()
