@@ -24,6 +24,9 @@ def main():
     model.get_atmoshperic_profiles()
     model.set_atmosheric_temp_profile()
 
+    model.toggle_plank_radiation('on')
+    model.toggle_scattering('on')
+
     model.set_reflection_type(0)
 
     model.set_wavelenth(500*10**(-9))
@@ -34,9 +37,9 @@ def main():
 
 
     rad_field = model.evaluate_radiation_field()
-    print(rad_field)
+    # print(rad_field)
 
-    # model.print_testvals()
+    model.print_testvals()
 
     int_grid = np.empty((len(lvl_grid)))
     source_grid = np.empty((len(lvl_grid)))
@@ -71,7 +74,7 @@ class RT_model_1D(object):
 
 
         ## init over different functions
-        # Parameter
+        # Ground informations
         self.ground_albedo = 0.7
         self.reflection_type = 0        # lambert
 
@@ -82,7 +85,7 @@ class RT_model_1D(object):
 
         # sun
         self.sun_intensity = 1000
-        self.sun_elevation = 0          # downward
+        self.sun_elevation = 0
         self.sun_azimuth = 90
 
         # atm fields
@@ -91,6 +94,30 @@ class RT_model_1D(object):
         self.absorption_coeff_field = None
         self.scattering_coeff_field = None
         self.temp_field = None
+
+        ## model controll
+        self.use_plank = 1
+        self.use_scat = 1
+
+
+    def toggle_plank_radiation(self, input):
+        """ Toggle the use of plank radiation in the model.
+        The default is on (1).
+        """
+        if input not in [0, 1, 'on', 'off']:
+            raise ValueError('The input for the toggle the use of plank '\
+                    'Radiation must "on" (1) or "off" (0)')
+        self.use_plank = 1 if input == 'on' else 0 if input == 'off' else input
+
+
+    def toggle_scattering(self, input):
+        """ Toggle the use of scattering in the model. (So k = abs_coef)
+        The default is on (1).
+        """
+        if input not in [0, 1, 'on', 'off']:
+            raise ValueError('The input for the toggle the us of scattering '\
+                    'in the model must "on" (1) or "off" (0)')
+        self.use_scat = 1 if input == 'on' else 0 if input == 'off' else input
 
 
     def set_wavelenth(self, wavelength):
@@ -264,7 +291,7 @@ class RT_model_1D(object):
         for lvl in np.arange(len(self.height_array)-1,idx-1,-1):
 
             tau += (self.absorption_coeff_field[lvl] + \
-                self.scattering_coeff_field[lvl]) * \
+                self.scattering_coeff_field[lvl] * self.use_scat) * \
                 self.swiping_height / np.cos(f.deg2rad(self.sun_elevation))
 
         I_dir = self.sun_intensity * np.exp(- tau)
@@ -299,7 +326,8 @@ class RT_model_1D(object):
         absorbtion and scattering coefficent at the given height. """
 
         id = f.argclosest(height, self.height_array)
-        k = self.absorption_coeff_field[id] + self.scattering_coeff_field[id]
+        k = self.absorption_coeff_field[id] + \
+            self.use_scat * self.scattering_coeff_field[id]
 
         I_ext = intensity * np.exp(-k * self.swiping_height)
 
@@ -371,8 +399,9 @@ class RT_model_1D(object):
         for id, height in enumerate(height_at_rad_field[1:]):
             # id starts at 0 for idx 1 from height at rad field!
             rad_field[id+1] = RT_model_1D.extinction_term(self, rad_field[id],
-                    height) + RT_model_1D.scattering_source_term(self, height) \
-                    + RT_model_1D.plank_source_term(self, height)
+                    height) + self.use_scat * \
+                    RT_model_1D.scattering_source_term(self, height) + \
+                    self.use_plank * RT_model_1D.plank_source_term(self, height)
 
         # invert the rad_field for the uplooking case
         return np.flipud(rad_field) if angle < 90 else rad_field
@@ -380,7 +409,7 @@ class RT_model_1D(object):
 
     def print_testvals(self):
         """prints an attribute which must be set here. It's for testing."""
-        print(self.temp_field)
+        print(self.use_plank)
 
 
 if __name__ == '__main__':
