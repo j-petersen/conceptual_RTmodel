@@ -38,12 +38,12 @@ def plot_intensity(rad_array, height_array, ax=None, multi_way = True):
         ax = plt.gca()
 
     if multi_way:
-        ax.plot(rad_array[0][::-1], height_array, label = 'downward')
+        ax.plot(rad_array[0], height_array, label = 'downward')
         ax.plot(rad_array[1], height_array, label = 'upward')
     if not multi_way:
         ax.plot(rad_array, height_array, label = 'intensity')
-    ax.set_xlim(0,1000)
-    #ax.set_ylim(0,10)
+    # ax.set_xlim(0,1000)
+    # ax.set_ylim(0,10)
     ax.set_xlabel(f"Intensity / a.u.")
     ax.set_ylabel(f"Height / km")
     # ax.set_title('multilayer extionction')

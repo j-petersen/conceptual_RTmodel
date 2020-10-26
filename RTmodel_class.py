@@ -21,6 +21,8 @@ def main():
 
     lvl_grid = model.define_grid(atm_height = 200, swiping_height = 1)
 
+    model.set_wavelenth(500*10**(-9))
+
     model.get_atmoshperic_profiles()
     model.set_atmosheric_temp_profile()
 
@@ -28,8 +30,6 @@ def main():
     model.toggle_scattering('on')
 
     model.set_reflection_type(0)
-
-    model.set_wavelenth(500*10**(-9))
 
     model.set_sun_position(sun_intensity, sun_ele, sun_azi)
     model.set_receiver(receiver_height, receiver_elevation_angle,
@@ -41,36 +41,20 @@ def main():
 
     model.print_testvals()
 
-    int_grid = np.empty((len(lvl_grid)))
-    source_grid = np.empty((len(lvl_grid)))
-
-    for id, lvl in enumerate(lvl_grid):
-        int_grid[id] = model.calc_direct_beam_intensity(int(lvl))
-        source_grid[id] = model.scattering_source_term(lvl)
-
-
-    if False:
-        ty.plots.styles.use(["typhon", 'typhon-dark'])
-        fig, ax = plt.subplots(ncols=1,nrows=1)
-        pr.plot_intensity(list(int_grid), list(lvl_grid/1000),
-                        ax = ax, multi_way = False)
-        #fig.savefig()
-        plt.show()
-
-
 
 class RT_model_1D(object):
     """docstring for RT_model_1D."""
     c_0 = 299_792_458       # m/s
     h = 6.6262*10**(-34)    # J s
     kb = 1.3805*10**(-23)   # J K^-1
+    ABSORPTION_CROSS_SEC = 1e-30
+    SCATTERIN_CROSS_SEC_HENYEY = 6.24e-32
 
     def __init__(self):
         super().__init__()
         ## Radiation specific
         self.wavelength = None
-        self.absorption_cross_sec = 1e-30
-        self.scattering_cross_sec = 6.24e-32
+        self.scattering_cross_sec = None
 
 
         ## init over different functions
@@ -98,6 +82,26 @@ class RT_model_1D(object):
         ## model controll
         self.use_plank = 1
         self.use_scat = 1
+        self.scat_type = 1
+
+
+    def set_scattering_type(self, scattering_type):
+        """ Set the scattering type for the model
+            Options are scattering with an constant scattering cross section and
+            a phasefunction based on Henyey Greenstein (0) and rayleigh
+            scattering with an wavelength dependent cross section (1).
+            For full polarimetric simulation (stokes_dim > 1) rayleigh
+            scattering will be used.
+        """
+        if scattering_type == 'rayleigh':
+            scattering_type = 1
+        elif scattering_type == 'henyey_greenstein':
+            scattering_type = 0
+        if scattering_type not in [0,1]:
+            raise ValueError('Only "henyey_greenstein" (0) or "rayleigh" (1) \
+                            are valid options')
+
+        self.scat_type = scattering_type
 
 
     def toggle_plank_radiation(self, input):
@@ -121,7 +125,7 @@ class RT_model_1D(object):
 
 
     def set_wavelenth(self, wavelength):
-        """Sets the wavelength for the model instance.
+        """ Sets the wavelength for the model instance.
 
         Parameters:
             wavelength (float) [m]:
@@ -133,6 +137,19 @@ class RT_model_1D(object):
             raise ValueError('The wavelength cannot be negative')
 
         self.wavelength = wavelength
+        RT_model_1D.set_scattering_cross_sec(self)
+        RT_model_1D.get_atmoshperic_profiles(self)
+
+
+    def set_scattering_cross_sec(self):
+        """ Sets the scattering cross section according to the wavelength of the
+        model instance."""
+        if self.scat_type == 1:
+            sigma = f.calc_rayleigh_scattering_cross_section(self.wavelength)
+            self.scattering_cross_sec = sigma
+        elif self.scat_type == 0:
+            self.scattering_cross_sec = self.SCATTERIN_CROSS_SEC_HENYEY
+
 
 
     def set_reflection_type(self, reflection_type = 0):
@@ -167,13 +184,15 @@ class RT_model_1D(object):
         if height < 0:
             raise ValueError('The height cannot be negative')
         if type(elevation) not in [int, float]:
-            raise TypeError('The angle must be a real number between 0 and 180')
+            raise TypeError('An angle must be a real number between 0 and 180')
         if elevation < 0 or elevation > 180:
-            raise ValueError('The angle cannot be negative or greater 180')
+            raise ValueError('The elevation cannot be negative or greater 180')
+        if elevation == 90:
+            raise ValueError('The elevation can not be 90')
         if type(azimuth) not in [int, float]:
-            raise TypeError('The angle must be a real number between 0 and 360')
+            raise TypeError('An angle must be a real number between 0 and 360')
         if azimuth < 0 or azimuth >= 360:
-            raise ValueError('The angle cannot be negative or >= 360')
+            raise ValueError('The azimuth cannot be negative or >= 360')
 
         idx, height = f.argclosest(f.km2m(height), self.height_array,
                                     return_value = True)
@@ -251,7 +270,8 @@ class RT_model_1D(object):
         for idx, height in enumerate(self.height_array):
             dens = dens_profile[f.argclosest(height,
                                 f.km2m(dens_profile_height))]
-            self.absorption_coeff_field[idx] = dens * self.absorption_cross_sec
+            print(dens)
+            self.absorption_coeff_field[idx] = dens * self.ABSORPTION_CROSS_SEC
             self.scattering_coeff_field[idx] = dens * self.scattering_cross_sec
 
         return self.absorption_coeff_field, self.scattering_coeff_field
@@ -286,13 +306,14 @@ class RT_model_1D(object):
 
         idx, height = f.argclosest(height, self.height_array,
                                     return_value = True)
+        angle = (self.sun_elevation + 90) % 180
 
         tau = 0
         for lvl in np.arange(len(self.height_array)-1,idx-1,-1):
 
             tau += (self.absorption_coeff_field[lvl] + \
                 self.scattering_coeff_field[lvl] * self.use_scat) * \
-                self.swiping_height / np.cos(f.deg2rad(self.sun_elevation))
+                self.swiping_height / np.cos(np.deg2rad(angle))
 
         I_dir = self.sun_intensity * np.exp(- tau)
 
@@ -306,10 +327,17 @@ class RT_model_1D(object):
         angle = f.calc_scattering_angle(self.sun_elevation,
             self.receiver_elevation,self.sun_azimuth, self.receiver_azimuth)
 
+        # setting the phase function according to the selected scattering type
+        if self.scat_type:
+            phase_func = f.rayleigh_phasematrix(angle, stokes_dim = 1)
+        else:
+            phase_func = f.henyey_greenstein_phasefunc(angle, g = 0.7)
+
         I_scat = (1 - np.exp(-self.scattering_coeff_field[idx] *
                              self.swiping_height)) * \
                     RT_model_1D.calc_direct_beam_intensity(self, height) *\
-                    f.phasefunc(angle)
+                    phase_func
+
         return I_scat
 
 
@@ -334,8 +362,8 @@ class RT_model_1D(object):
         return I_ext
 
 
-    def create_reciever_viewing_field(self):
-        """create an empty array where the field will be evaluated"""
+    def create_receiver_viewing_field(self):
+        """creates an empty array where the field will be evaluated"""
         height = self.receiver_height
         angle = (self.receiver_elevation + 90) % 180 # revert in viewing direct
         idx = f.argclosest(self.receiver_height, self.height_array)
@@ -350,11 +378,16 @@ class RT_model_1D(object):
             height_at_rad_field = np.arange(0, height + self.swiping_height,
                                         self.swiping_height)
 
-        elif angle == 90:
-            # homogenius at one level
-            height_at_rad_field = height
 
         return  height_at_rad_field
+
+
+
+    def get_receiver_viewing_field(self):
+        """ Returns the height field for the it is seen from the receiver """
+        field = RT_model_1D.create_receiver_viewing_field(self)
+        return np.flipud(field)
+
 
 
     def rad_field_initial_condition(self):
@@ -370,19 +403,18 @@ class RT_model_1D(object):
         # Looking at the ground
         elif angle > 90:
             I_ground = RT_model_1D.calc_direct_beam_intensity(self, 0)
+
             I_lambert = I_ground * self.ground_albedo * \
-                np.cos(f.deg2rad(self.receiver_elevation))
+                np.cos(np.deg2rad((self.sun_elevation + 180) % 360))
+
             I_specular = I_ground * self.ground_albedo * \
-                f.delta_func((self.sun_elevation -
-                self.receiver_elevation + 90) % 180) * \
+                f.delta_func(self.sun_elevation +
+                self.receiver_elevation - 180) * \
                 f.delta_func(self.sun_azimuth - self.receiver_azimuth)
 
             I_init = (1 - self.reflection_type) * I_lambert + \
                      self.reflection_type * I_specular
 
-        # Looking along the slap
-        elif angle == 90:
-            pass
 
         return I_init
 
@@ -391,7 +423,7 @@ class RT_model_1D(object):
         """DocString"""
         angle = (self.receiver_elevation + 90) % 180 # revert in viewing direct
 
-        height_at_rad_field = RT_model_1D.create_reciever_viewing_field(self)
+        height_at_rad_field = RT_model_1D.create_receiver_viewing_field(self)
         rad_field = np.empty((len(height_at_rad_field)))
 
         rad_field[0] = RT_model_1D.rad_field_initial_condition(self)
@@ -404,7 +436,7 @@ class RT_model_1D(object):
                     self.use_plank * RT_model_1D.plank_source_term(self, height)
 
         # invert the rad_field for the uplooking case
-        return np.flipud(rad_field) if angle < 90 else rad_field
+        return np.flipud(rad_field)
 
 
     def print_testvals(self):
