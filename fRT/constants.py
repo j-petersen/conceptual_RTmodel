@@ -82,7 +82,15 @@ Earth characteristics
 ``earth_radius``  Earth radius in :math:`\sf m`
 ``atm``           Standard atmosphere in :math:`\sf Pa`
 ================  =====================================
+Sun characteristics
+=====================
+===================  ===========================================
+``sun_eff_temp``     Suns effective temperature in :math:`\sf K`
+``sun_solid_angle``  Sun solid angle in :math:`\sf sr`
+===================  ===========================================
 """
+
+
 import numpy as np
 import scipy.constants as spc
 
@@ -152,3 +160,7 @@ MB = 10 ** 6
 earth_mass = 5.97237e24  # kg
 earth_radius = 6.3781e6  # m
 atm = atmosphere = 101325  # Pa
+
+# Sun characteristics
+sun_eff_temp = 5780 # K
+sun_solid_angle = 6.807e-5 # sr

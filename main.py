@@ -14,7 +14,7 @@ def model_setup(sun, receiver):
 
     model.define_grid(atm_height=200, swiping_height=1)
 
-    model.set_wavelenth(400e-9)
+    model.set_wavelenth(500e-9)
     model.set_scattering_type("rayleigh")
     # model.set_scattering_type('henyey_greenstein')
 
@@ -26,7 +26,7 @@ def model_setup(sun, receiver):
 
     model.set_reflection_type(0.5)
 
-    model.set_sun_position(sun.intensity, sun.elevation, sun.azimuth)
+    model.set_sun_position(sun.elevation, sun.azimuth)
     model.set_receiver(receiver.height, receiver.elevation, receiver.azimuth)
 
     return model
@@ -80,7 +80,7 @@ def plotting_radiation_height(rt):
 def plotting_radiation_at_viewingangle(rt, sun, receiver):
     angles = np.linspace(0, 180, 40, endpoint=True)
     receiver_field = np.empty((len(angles)))
-    rt.set_sun_position(sun.intensity, angles[8], sun.azimuth)
+    rt.set_sun_position(angles[8], sun.azimuth)
     for id, angle in enumerate(angles):
         rt.set_receiver(receiver.height, angle, receiver.azimuth)
 
@@ -132,7 +132,7 @@ def plot_blue_red_sky(rt, sun, receiver, scaled=False):
     for id_wave, wavelengh in enumerate(wavelenghs):
         rt.set_wavelenth(wavelengh)
         for id_angle, angle in enumerate(angles):
-            rt.set_sun_position(sun.intensity, angle, sun.azimuth)
+            rt.set_sun_position(angle, sun.azimuth)
             rt.set_receiver(receiver.height, angle, receiver.azimuth)
             rad_field[id_wave, id_angle] = rt.evaluate_radiation_field()[0]
 
@@ -165,7 +165,7 @@ def plot_blue_red_sky(rt, sun, receiver, scaled=False):
 
 def plot_sky_stationary_sun(rt, sun, receiver):
     angle_resolution = 10
-    rt.set_sun_position(1000, sun.elevation, sun.azimuth)
+    rt.set_sun_position(sun.elevation, sun.azimuth)
     elevations = np.arange(0, 90, angle_resolution)
 
     azimuths = np.arange(
@@ -216,13 +216,13 @@ if __name__ == "__main__":
     ty.plots.styles.use(["typhon", "typhon-dark"])
 
     receiver = fRT.Receiver(height=0, ele=45, azi=180)
-    sun = fRT.Sun(intensity=1000, ele=45, azi=185)
+    sun = fRT.Sun(ele=45, azi=185)
 
     rt = model_setup(sun, receiver)
     # test(rt)
     # plotting_radiation_height(rt)
     # plotting_radiation_at_viewingangle(rt, sun, receiver)
-    plot_blue_red_sky(rt, sun, receiver, scaled=False)
+    plot_blue_red_sky(rt, sun, receiver, scaled=True)
     # plot_phasefunction()
 
     # elevations = np.arange(0, 90, 10)

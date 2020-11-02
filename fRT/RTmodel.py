@@ -34,7 +34,7 @@ class RT_model_1D(object):
         self.receiver_azimuth = None
 
         # sun
-        self.sun_intensity = 1000
+        self.sun_intensity = None
         self.sun_elevation = 0
         self.sun_azimuth = 90
 
@@ -49,6 +49,22 @@ class RT_model_1D(object):
         self.use_planck = 1
         self.use_scat = 1
         self.scat_type = 1
+        self.stokes_dim = 1
+
+    def set_stokes_dim(self, stokes_dim):
+        """Set the scattering type for the model
+        Options are scattering with an constant scattering cross section and
+        a phasefunction based on Henyey Greenstein (0) and rayleigh
+        scattering with an wavelength dependent cross section (1).
+        For full polarimetric simulation (stokes_dim > 1) rayleigh
+        scattering will be used.
+        """
+        if scattering_type not in [1, 2, 3, 4]:
+            raise ValueError(
+                "The dimention of the stokes vector can only be 1, 2, 3 or 4"
+            )
+
+        self.stokes_dim = stokes_dim
 
     def set_scattering_type(self, scattering_type):
         """Set the scattering type for the model
@@ -95,6 +111,9 @@ class RT_model_1D(object):
     def set_wavelenth(self, wavelength):
         """Sets the wavelength for the model instance.
 
+        This is needed for the scattering cross section as well as the incoming sun
+        intensity.
+
         Parameters:
             wavelength (float) [m]:
                 The wavelength for which the simulation will be performed.
@@ -105,6 +124,7 @@ class RT_model_1D(object):
         self.wavelength = wavelength
         RT_model_1D.set_scattering_cross_sec(self)
         RT_model_1D.get_atmoshperic_profiles(self)
+        self.sun_intensity = f.sun_init_intensity(self.wavelength)
 
     def set_scattering_cross_sec(self):
         """Sets the scattering cross section according to the wavelength of the
@@ -153,28 +173,36 @@ class RT_model_1D(object):
         self.receiver_elevation = (elevation + 90) % 180
         self.receiver_azimuth = (azimuth + 180) % 360
 
-    def set_sun_position(self, intensity, elevation, azimuth):
+    def set_sun_position(self, elevation, azimuth, intensity=None):
         """Sets the elevation and azimuth angle of the sun and the intensity.
         The function converts the angle into the radiation transport direction.
 
         Parameters:
-            intensity (float): Intensity of the sun (positive) [W/m2/sr/nm].
             elevation (float):  The elevation angle of the sun.
                             Must be between 0 (zenith) and 90 (horizion) [deg].
             azimuth (float):  The azimuth angle of the sun.
                             Must be between 0 and 360 [deg].
+            intensity (float): Intensity of the sun (positive) [W/m2/sr/nm].
         """
 
-        if intensity < 0:
-            raise ValueError("The intensity cannot be negative")
         if elevation < 0 or elevation >= 90:
             raise ValueError("The elevation cannot be negative or >= 90")
         if azimuth < 0 or azimuth >= 360:
             raise ValueError("The azimuth cannot be negative or >= 360")
+        if intensity is not None:
+            if intensity < 0:
+                raise ValueError("The intensity cannot be negative")
 
-        self.sun_intensity = intensity
         self.sun_elevation = (elevation + 90) % 180
         self.sun_azimuth = (azimuth + 180) % 360
+        if intensity is not None and self.sun_intensity is not None:
+            print('The set sun intensity might not fit to the suns intensity \
+                    at the set wavelengh')
+            self.sun_intensity = intensity
+        elif intensity is not None and self.sun_intensity is None:
+            self.sun_intensity = intensity
+        else:
+            self.sun_intensity = f.sun_init_intensity(self.wavelength)
 
     def define_grid(self, atm_height=200, swiping_height=1):
         """Sets the Grid for the atmosheric parameters.

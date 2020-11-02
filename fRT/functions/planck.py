@@ -3,7 +3,8 @@ from fRT import constants
 
 __all__ = [
     "planck_freq",
-    "planck_wavelength"
+    "planck_wavelength",
+    "sun_init_intensity"
     ]
 
 
@@ -35,3 +36,11 @@ def planck_wavelength(lam, temp):
     B = 2 * h * c_0 ** 2 / lam ** 5 * 1 / (factor - 1)
 
     return B
+
+def sun_init_intensity(wavelength):
+    """ Returns the sun intensity for the field initialisation. """
+    sun_eff_temp = constants.sun_eff_temp
+    sun_solid_angle = constants.sun_solid_angle
+    rad = planck_wavelength(wavelength, sun_eff_temp)
+
+    return rad * sun_solid_angle / (4*np.pi)
