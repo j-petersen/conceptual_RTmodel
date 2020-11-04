@@ -1,12 +1,9 @@
 import numpy as np
 
-__all__ = [
-    "argclosest",
-    "isclose",
-    "delta_func"
-]
+__all__ = ["argclosest", "isclose", "delta_func"]
 
-def argclosest(value, array, return_value=False):
+
+def argclosest(value: object, array: object, return_value: object = False) -> object:
     """Returns the index in ``array`` which is closest to ``value``."""
     idx = np.abs(array - value).argmin()
     return (idx, array[idx].item()) if return_value else idx

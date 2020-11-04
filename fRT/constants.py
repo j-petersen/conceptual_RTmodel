@@ -162,5 +162,5 @@ earth_radius = 6.3781e6  # m
 atm = atmosphere = 101325  # Pa
 
 # Sun characteristics
-sun_eff_temp = 5780 # K
-sun_solid_angle = 6.807e-5 # sr
+sun_eff_temp = 5780  # K
+sun_solid_angle = 6.807e-5  # sr

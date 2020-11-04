@@ -1,7 +1,5 @@
-__all__ = [
-    "km2m",
-    "m2km"
-]
+__all__ = ["km2m", "m2km"]
+
 
 def km2m(km):
     """Converts km to m"""

@@ -4,32 +4,32 @@ import typhon as ty
 from fRT import functions as f
 import plotting_routines as pr
 import matplotlib.pyplot as plt
-from matplotlib.ticker import StrMethodFormatter
 
 
 def model_setup(sun, receiver):
     # Control parameters
 
-    model = fRT.RT_model_1D()  # create model instance
+    rt_model = fRT.RT_model_1D()  # create model instance
 
-    model.define_grid(atm_height=200, swiping_height=1)
+    rt_model.define_grid(atm_height=200, swiping_height=1)
+    rt_model.set_stokes_dim(4)
 
-    model.set_wavelenth(500e-9)
-    model.set_scattering_type("rayleigh")
+    rt_model.set_wavelenth(500e-9)
+    rt_model.set_scattering_type("rayleigh")
     # model.set_scattering_type('henyey_greenstein')
 
     # model.get_atmoshperic_profiles()
-    model.set_atmosheric_temp_profile()
+    rt_model.set_atmosheric_temp_profile()
 
-    model.toggle_planck_radiation("off")
-    model.toggle_scattering("on")
+    rt_model.toggle_planck_radiation("off")
+    rt_model.toggle_scattering("on")
 
-    model.set_reflection_type(0.5)
+    rt_model.set_reflection_type(0.5)
 
-    model.set_sun_position(sun.elevation, sun.azimuth)
-    model.set_receiver(receiver.height, receiver.elevation, receiver.azimuth)
+    rt_model.set_sun_position(sun.elevation, sun.azimuth)
+    rt_model.set_receiver(receiver.height, receiver.elevation, receiver.azimuth)
 
-    return model
+    return rt_model
 
 
 def test(rt):
@@ -69,9 +69,8 @@ def plotting_radiation_height(rt):
     if max_height is not None:
         ax.set_ylim(0, max_height)
 
-    ax.set_xlim(150, 500)
-    ax.set_xlabel(r"Intensity / a.u.")
-    # ax.set_xlabel(r"Intensity / $Wm^{-2}sr^{-1}m^{-1}$")
+    # ax.set_xlabel(r"Intensity / a.u.")
+    ax.set_xlabel(r"Intensity / $Wm^{-2}sr^{-1}m^{-1}$")
     ax.set_ylabel("height / km")
 
     # fig.savefig('plots/height_intensity_from_ground', dpi=300)
@@ -169,8 +168,7 @@ def plot_sky_stationary_sun(rt, sun, receiver):
     elevations = np.arange(0, 90, angle_resolution)
 
     azimuths = np.arange(
-        sun.azimuth - 60, sun.azimuth + 60 + angle_resolution, angle_resolution
-    )
+        sun.azimuth - 60, sun.azimuth + 60 + angle_resolution, angle_resolution)
 
     wavelengths = np.array((700, 550, 400)) * 1e-9
 
@@ -215,19 +213,19 @@ def plot_sky_stationary_sun(rt, sun, receiver):
 if __name__ == "__main__":
     ty.plots.styles.use(["typhon", "typhon-dark"])
 
-    receiver = fRT.Receiver(height=0, ele=45, azi=180)
-    sun = fRT.Sun(ele=45, azi=185)
+    receiver = fRT.Receiver(height=50, ele=45, azi=180)
+    sun = fRT.Sun(ele=45, azi=180)
 
-    rt = model_setup(sun, receiver)
-    # test(rt)
-    # plotting_radiation_height(rt)
-    # plotting_radiation_at_viewingangle(rt, sun, receiver)
-    plot_blue_red_sky(rt, sun, receiver, scaled=True)
+    model = model_setup(sun, receiver)
+    # test(model)
+    plotting_radiation_height(model)
+    # plotting_radiation_at_viewingangle(model, sun, receiver)
+    # plot_blue_red_sky(model, sun, receiver, scaled=True)
     # plot_phasefunction()
 
     # elevations = np.arange(0, 90, 10)
     # for count, ele in enumerate(elevations):
     #     sun.set_elevation(ele)
-    #     plot_sky_stationary_sun(rt, sun, receiver)
+    #     plot_sky_stationary_sun(model, sun, receiver)
     #     print(f"Done with {count+1} of {len(elevations)} Plots!")
     plt.show()

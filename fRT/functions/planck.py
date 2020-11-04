@@ -1,11 +1,7 @@
 import numpy as np
 from fRT import constants
 
-__all__ = [
-    "planck_freq",
-    "planck_wavelength",
-    "sun_init_intensity"
-    ]
+__all__ = ["planck_freq", "planck_wavelength", "sun_init_intensity"]
 
 
 def planck_freq(freq, temp, stokes_dim=1):
@@ -43,12 +39,13 @@ def planck_wavelength(lam, temp, stokes_dim=1):
 
     return B if stokes_dim == 1 else stokes
 
+
 def sun_init_intensity(wavelength, stokes_dim=1):
     """ Returns the sun intensity for the field initialisation. """
     sun_eff_temp = constants.sun_eff_temp
     sun_solid_angle = constants.sun_solid_angle
     rad = planck_wavelength(wavelength, sun_eff_temp)
-    rad *= sun_solid_angle / (4*np.pi) # normalize
+    rad *= sun_solid_angle / (4 * np.pi)  # normalize
     stokes = np.zeros(stokes_dim)
     stokes[0] = rad
 

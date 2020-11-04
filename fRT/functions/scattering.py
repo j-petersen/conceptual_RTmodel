@@ -5,7 +5,7 @@ __all__ = [
     "rayleigh_phasefunc",
     "rayleigh_phasematrix",
     "calc_scattering_angle",
-    "calc_rayleigh_scattering_cross_section"
+    "calc_rayleigh_scattering_cross_section",
 ]
 
 

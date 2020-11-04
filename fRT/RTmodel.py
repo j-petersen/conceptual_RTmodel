@@ -15,15 +15,15 @@ class RT_model_1D(object):
     h = constants.planck
     kb = constants.boltzmann
     ABSORPTION_CROSS_SEC = 1e-30
-    SCATTERIN_CROSS_SEC_HENYEY = 6.24e-32
+    SCATTERING_CROSS_SEC_HENYEY = 6.24e-32
 
     def __init__(self):
         super().__init__()
-        ## Radiation specific
+        # Radiation specific
         self.wavelength = None
         self.scattering_cross_sec = None
 
-        ## init over different functions
+        # init over different functions
         # Ground informations
         self.ground_albedo = 0.7
         self.reflection_type = 0  # lambert
@@ -45,21 +45,15 @@ class RT_model_1D(object):
         self.scattering_coeff_field = None
         self.temp_field = None
 
-        ## model controll
+        # model controll
         self.use_planck = 1
         self.use_scat = 1
         self.scat_type = 1
         self.stokes_dim = 1
 
     def set_stokes_dim(self, stokes_dim):
-        """Set the scattering type for the model
-        Options are scattering with an constant scattering cross section and
-        a phasefunction based on Henyey Greenstein (0) and rayleigh
-        scattering with an wavelength dependent cross section (1).
-        For full polarimetric simulation (stokes_dim > 1) rayleigh
-        scattering will be used.
-        """
-        if scattering_type not in [1, 2, 3, 4]:
+        """Sets the dimention of the stokes vector."""
+        if stokes_dim not in [1, 2, 3, 4]:
             raise ValueError(
                 "The dimention of the stokes vector can only be 1, 2, 3 or 4"
             )
@@ -83,6 +77,12 @@ class RT_model_1D(object):
                 'Only "henyey_greenstein" (0) or "rayleigh" (1) \
                             are valid options'
             )
+        if self.stokes_dim in [
+            2,
+            3,
+            4,
+        ]:  # full polarimetric can only be rayleigh scattering
+            scattering_type = 1
 
         self.scat_type = scattering_type
 
@@ -124,7 +124,7 @@ class RT_model_1D(object):
         self.wavelength = wavelength
         RT_model_1D.set_scattering_cross_sec(self)
         RT_model_1D.get_atmoshperic_profiles(self)
-        self.sun_intensity = f.sun_init_intensity(self.wavelength)
+        self.sun_intensity = f.sun_init_intensity(self.wavelength, self.stokes_dim)
 
     def set_scattering_cross_sec(self):
         """Sets the scattering cross section according to the wavelength of the
@@ -133,7 +133,7 @@ class RT_model_1D(object):
             sigma = f.calc_rayleigh_scattering_cross_section(self.wavelength)
             self.scattering_cross_sec = sigma
         elif self.scat_type == 0:
-            self.scattering_cross_sec = self.SCATTERIN_CROSS_SEC_HENYEY
+            self.scattering_cross_sec = self.SCATTERING_CROSS_SEC_HENYEY
 
     def set_reflection_type(self, reflection_type=0):
         """Set the reflection type for the model
@@ -196,8 +196,10 @@ class RT_model_1D(object):
         self.sun_elevation = (elevation + 90) % 180
         self.sun_azimuth = (azimuth + 180) % 360
         if intensity is not None and self.sun_intensity is not None:
-            print('The set sun intensity might not fit to the suns intensity \
-                    at the set wavelengh')
+            print(
+                "The set sun intensity might not fit to the suns intensity \
+                    at the set wavelengh"
+            )
             self.sun_intensity = intensity
         elif intensity is not None and self.sun_intensity is None:
             self.sun_intensity = intensity
@@ -232,14 +234,22 @@ class RT_model_1D(object):
     def get_atmoshperic_profiles(self):
         """Returns atm fields of the absorption and scattering coefficent
         depending on the readin_densprofile"""
-        self.absorption_coeff_field = np.empty((len(self.height_array)))
-        self.scattering_coeff_field = np.empty((len(self.height_array)))
+        self.absorption_coeff_field = np.zeros(
+            (len(self.height_array), self.stokes_dim, self.stokes_dim)
+        )
+        self.scattering_coeff_field = np.zeros(
+            (len(self.height_array), self.stokes_dim, self.stokes_dim)
+        )
         dens_profile_height, dens_profile = f.readin_densprofile()
 
         for idx, height in enumerate(self.height_array):
             dens = dens_profile[f.argclosest(height, f.km2m(dens_profile_height))]
-            self.absorption_coeff_field[idx] = dens * self.ABSORPTION_CROSS_SEC
-            self.scattering_coeff_field[idx] = dens * self.scattering_cross_sec
+            np.fill_diagonal(
+                self.absorption_coeff_field[idx], dens * self.ABSORPTION_CROSS_SEC
+            )
+            np.fill_diagonal(
+                self.scattering_coeff_field[idx], dens * self.scattering_cross_sec
+            )
 
         return self.absorption_coeff_field, self.scattering_coeff_field
 
@@ -271,7 +281,7 @@ class RT_model_1D(object):
         idx, height = f.argclosest(height, self.height_array, return_value=True)
         angle = (self.sun_elevation + 90) % 180
 
-        tau = 0
+        tau = np.zeros((self.stokes_dim,self.stokes_dim))
         for lvl in np.arange(len(self.height_array) - 1, idx - 1, -1):
 
             tau += (
@@ -283,6 +293,8 @@ class RT_model_1D(object):
                 / np.cos(np.deg2rad(angle))
             )
 
+        # np.exp calculates element wise not the matricexponential!
+        # but for diagonal matricies this is the same
         I_dir = self.sun_intensity * np.exp(-tau)
 
         return I_dir
@@ -315,7 +327,7 @@ class RT_model_1D(object):
         idx, height = f.argclosest(height, self.height_array, return_value=True)
         temp = self.temp_field[idx]
 
-        return f.planck_wavelength(self.wavelength, temp)
+        return f.planck_wavelength(self.wavelength, temp, self.stokes_dim)
 
     def extinction_term(self, intensity, height):
         """Clalculates the extinction term based on the given intensity and the
@@ -326,7 +338,8 @@ class RT_model_1D(object):
             self.absorption_coeff_field[id]
             + self.use_scat * self.scattering_coeff_field[id]
         )
-
+        # np.exp calculates element wise not the matricexponential!
+        # but for diagonal matricies this is the same
         I_ext = intensity * np.exp(-k * self.swiping_height)
 
         return I_ext
@@ -335,7 +348,6 @@ class RT_model_1D(object):
         """creates an empty array where the field will be evaluated"""
         height = self.receiver_height
         angle = (self.receiver_elevation + 90) % 180  # revert in viewing direct
-        idx = f.argclosest(self.receiver_height, self.height_array)
 
         if angle < 90:
             # from rec (at idx) to TOA (len(h.a.))
@@ -350,6 +362,9 @@ class RT_model_1D(object):
             height_at_rad_field = np.arange(
                 0, height + self.swiping_height, self.swiping_height
             )
+
+        else:
+            height_at_rad_field = np.NAN
 
         return height_at_rad_field
 
@@ -391,12 +406,16 @@ class RT_model_1D(object):
                 1 - self.reflection_type
             ) * I_lambert + self.reflection_type * I_specular
 
-        return I_init
+        else:
+            I_init = np.NAN
+
+        stokes = np.zeros(self.stokes_dim)
+        stokes[0] = I_init
+
+        return I_init if self.stokes_dim == 1 else stokes
 
     def evaluate_radiation_field(self):
         """DocString"""
-        angle = (self.receiver_elevation + 90) % 180  # revert in viewing direct
-
         height_at_rad_field = RT_model_1D.create_receiver_viewing_field(self)
         rad_field = np.empty((len(height_at_rad_field)))
 
@@ -415,4 +434,4 @@ class RT_model_1D(object):
 
     def print_testvals(self):
         """prints an attribute which must be set here. It's for testing."""
-        print(self.use_placnk)
+        print(self.use_planck)

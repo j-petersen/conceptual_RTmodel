@@ -1,9 +1,7 @@
 import numpy as np
 
-__all__ = [
-    "readin_densprofile",
-    "readin_tempprofile"
-    ]
+__all__ = ["readin_densprofile", "readin_tempprofile"]
+
 
 def readin_densprofile():
     PATH = "/Users/jonpetersen/data/data_BA/"

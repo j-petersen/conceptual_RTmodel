@@ -1,14 +1,16 @@
 import numpy as np
-from fRT.functions.scattering import calc_scattering_angle
+from fRT.functions.scattering import *
 
 __all__ = [
     "stokes_rotation_matrix",
     "transformation_angle",
-    "transformed_rayleigh_scattering_matrix"
-    ]
+    "transformed_rayleigh_scattering_matrix",
+]
+
 
 def stokes_rotation_matrix(eta):
     """Calculates the Stokes rotation matrix L(eta) for the angle eta.
+
     Based on Mishchenko eqn 1.97."""
     # if eta < 0 and eta > 180:
     #     raise ValueError('The angle must be positive and below 180')
@@ -19,8 +21,9 @@ def stokes_rotation_matrix(eta):
     return L
 
 
-def transformation_angle(theta_in, theta_out, phi_in, phi_out, theta_sca):
+def transformation_angle(theta_in, theta_out, phi_in, phi_out):
     """Calculates the transformation angles for the stokes_rotation_matrix.
+
     Based on Mishchenko eqn 4.18 and 4.19.
     """
 
@@ -49,6 +52,7 @@ def transformed_rayleigh_scattering_matrix(
     theta_in, theta_out, phi_in, phi_out, stokes_dim=4
 ):
     """The scattering matrix for the transport coordinate system.
+
     Based on Mishchenko eqn 4.14.
     """
     if theta_in < 0 and theta_in > 180:
@@ -61,9 +65,7 @@ def transformed_rayleigh_scattering_matrix(
         raise ValueError("Phi out cannot be negative or >= 360")
 
     theta_sca = calc_scattering_angle(theta_in, theta_out, phi_in, phi_out)
-    sigma1, sigma2 = transformation_angle(
-        theta_in, theta_out, phi_in, phi_out, theta_sca
-    )
+    sigma1, sigma2 = transformation_angle(theta_in, theta_out, phi_in, phi_out)
 
     L1 = stokes_rotation_matrix(-sigma2)
     L2 = stokes_rotation_matrix(180 - sigma1)
