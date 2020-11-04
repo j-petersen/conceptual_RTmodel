@@ -3,6 +3,7 @@
 """
 import numpy as np
 from fRT import constants
+from scipy.linalg import expm
 from fRT import functions as f
 
 __all__ = ["RT_model_1D"]
@@ -200,11 +201,13 @@ class RT_model_1D(object):
                 "The set sun intensity might not fit to the suns intensity \
                     at the set wavelengh"
             )
-            self.sun_intensity = intensity
+            self.sun_intensity = np.zeros((self.stokes_dim))
+            self.sun_intensity[0] = intensity
         elif intensity is not None and self.sun_intensity is None:
-            self.sun_intensity = intensity
+            self.sun_intensity = np.zeros((self.stokes_dim))
+            self.sun_intensity[0] = intensity
         else:
-            self.sun_intensity = f.sun_init_intensity(self.wavelength)
+            self.sun_intensity = f.sun_init_intensity(self.wavelength, self.stokes_dim)
 
     def define_grid(self, atm_height=200, swiping_height=1):
         """Sets the Grid for the atmosheric parameters.
@@ -293,10 +296,10 @@ class RT_model_1D(object):
                 / np.cos(np.deg2rad(angle))
             )
 
-        # np.exp calculates element wise not the matricexponential!
-        # but for diagonal matricies this is the same
-        I_dir = self.sun_intensity * np.exp(-tau)
-
+        if self.stokes_dim == 1:
+            I_dir = self.sun_intensity * np.exp(-tau)
+        else:
+            I_dir = expm(-tau) @ self.sun_intensity
         return I_dir
 
     def scattering_source_term(self, height):
@@ -311,15 +314,29 @@ class RT_model_1D(object):
 
         # setting the phase function according to the selected scattering type
         if self.scat_type:
-            phase_func = f.rayleigh_phasematrix(angle, stokes_dim=1)
+            phase_func = f.transformed_rayleigh_scattering_matrix(
+            self.sun_elevation,
+            self.receiver_elevation,
+            self.sun_azimuth,
+            self.receiver_azimuth,
+            self.stokes_dim
+            )
+            # phase_func = f.rayleigh_phasematrix(angle, self.stokes_dim)
         else:
             phase_func = f.henyey_greenstein_phasefunc(angle, g=0.7)
 
-        I_scat = (
-            (1 - np.exp(-self.scattering_coeff_field[idx] * self.swiping_height))
-            * RT_model_1D.calc_direct_beam_intensity(self, height)
-            * phase_func
-        )
+        if self.stokes_dim == 1:
+            I_scat = (
+                (1 - np.exp(-self.scattering_coeff_field[idx] * self.swiping_height))
+                * RT_model_1D.calc_direct_beam_intensity(self, height)
+                * phase_func
+            )
+        else:
+            I_scat = (
+                (1 - expm(-self.scattering_coeff_field[idx] * self.swiping_height))
+                @ RT_model_1D.calc_direct_beam_intensity(self, height)
+                @ phase_func
+            )
 
         return I_scat
 
@@ -340,7 +357,10 @@ class RT_model_1D(object):
         )
         # np.exp calculates element wise not the matricexponential!
         # but for diagonal matricies this is the same
-        I_ext = intensity * np.exp(-k * self.swiping_height)
+        if self.stokes_dim == 1:
+            I_ext = intensity * np.exp(-k * self.swiping_height)
+        else:
+            I_ext = expm(-k * self.swiping_height) @ intensity
 
         return I_ext
 
@@ -407,26 +427,27 @@ class RT_model_1D(object):
             ) * I_lambert + self.reflection_type * I_specular
 
         else:
-            I_init = np.NAN
+            I_init = np.empty(self.stokes_dim)
+            I_init.fill(np.nan)
 
-        stokes = np.zeros(self.stokes_dim)
-        stokes[0] = I_init
-
-        return I_init if self.stokes_dim == 1 else stokes
+        return I_init
 
     def evaluate_radiation_field(self):
         """DocString"""
         height_at_rad_field = RT_model_1D.create_receiver_viewing_field(self)
-        rad_field = np.empty((len(height_at_rad_field)))
+        rad_field = np.empty((len(height_at_rad_field), self.stokes_dim))
 
         rad_field[0] = RT_model_1D.rad_field_initial_condition(self)
 
         for id, height in enumerate(height_at_rad_field[1:]):
+            ext = RT_model_1D.extinction_term(self, rad_field[id], height)
+            scat = RT_model_1D.scattering_source_term(self, height)
+            planck = RT_model_1D.planck_source_term(self, height)
             # id starts at 0 for idx 1 from height at rad field!
             rad_field[id + 1] = (
-                RT_model_1D.extinction_term(self, rad_field[id], height)
-                + self.use_scat * RT_model_1D.scattering_source_term(self, height)
-                + self.use_planck * RT_model_1D.planck_source_term(self, height)
+                ext
+                + self.use_scat * scat
+                + self.use_planck * planck
             )
 
         # invert the rad_field for the uplooking case

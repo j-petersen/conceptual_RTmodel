@@ -15,7 +15,7 @@ def stokes_rotation_matrix(eta):
     # if eta < 0 and eta > 180:
     #     raise ValueError('The angle must be positive and below 180')
     L = np.zeros((4, 4))
-    L[0, 0], L[4, 4] = 1, 1
+    L[0, 0], L[3, 3] = 1, 1
     L[1, 1], L[2, 2] = np.cos(np.deg2rad(2 * eta)), np.cos(np.deg2rad(2 * eta))
     L[2, 1], L[1, 2] = np.sin(np.deg2rad(2 * eta)), -np.sin(np.deg2rad(2 * eta))
     return L
@@ -29,7 +29,7 @@ def transformation_angle(theta_in, theta_out, phi_in, phi_out):
 
     theta_sca = calc_scattering_angle(theta_in, theta_out, phi_in, phi_out)
 
-    sigma1 = np.argcos(
+    sigma1 = np.arccos(
         (
             np.cos(np.deg2rad(theta_out))
             - np.cos(np.deg2rad(theta_in)) * np.cos(np.deg2rad(theta_sca))
@@ -37,7 +37,7 @@ def transformation_angle(theta_in, theta_out, phi_in, phi_out):
         / np.sin(np.deg2rad(theta_in))
         * np.sin(np.deg2rad(theta_sca))
     )
-    sigma2 = np.argcos(
+    sigma2 = np.arccos(
         (
             np.cos(np.deg2rad(theta_in))
             - np.cos(np.deg2rad(theta_out)) * np.cos(np.deg2rad(theta_sca))

@@ -55,7 +55,7 @@ def test(rt):
 
 
 def plotting_radiation_height(rt):
-    rad_field = rt.evaluate_radiation_field()
+    rad_field = rt.evaluate_radiation_field()[:,1]
     height_field = rt.get_receiver_viewing_field()
 
     max_height = 200
@@ -213,7 +213,7 @@ def plot_sky_stationary_sun(rt, sun, receiver):
 if __name__ == "__main__":
     ty.plots.styles.use(["typhon", "typhon-dark"])
 
-    receiver = fRT.Receiver(height=50, ele=45, azi=180)
+    receiver = fRT.Receiver(height=0, ele=45, azi=180)
     sun = fRT.Sun(ele=45, azi=180)
 
     model = model_setup(sun, receiver)
