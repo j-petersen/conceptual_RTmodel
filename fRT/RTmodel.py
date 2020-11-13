@@ -284,9 +284,8 @@ class RT_model_1D(object):
         idx, height = f.argclosest(height, self.height_array, return_value=True)
         angle = (self.sun_elevation + 90) % 180
 
-        tau = np.zeros((self.stokes_dim,self.stokes_dim))
+        tau = np.zeros((self.stokes_dim, self.stokes_dim))
         for lvl in np.arange(len(self.height_array) - 1, idx - 1, -1):
-
             tau += (
                 (
                     self.absorption_coeff_field[lvl]
@@ -315,11 +314,11 @@ class RT_model_1D(object):
         # setting the phase function according to the selected scattering type
         if self.scat_type:
             phase_func = f.transformed_rayleigh_scattering_matrix(
-            self.sun_elevation,
-            self.receiver_elevation,
-            self.sun_azimuth,
-            self.receiver_azimuth,
-            self.stokes_dim
+                self.sun_elevation,
+                self.receiver_elevation,
+                self.sun_azimuth,
+                self.receiver_azimuth,
+                self.stokes_dim,
             )
             # phase_func = f.rayleigh_phasematrix(angle, self.stokes_dim)
         else:
@@ -333,7 +332,8 @@ class RT_model_1D(object):
             )
         else:
             I_scat = (
-                (1 - expm(-self.scattering_coeff_field[idx] * self.swiping_height))
+                (np.eye(self.stokes_dim) - expm(-self.scattering_coeff_field[idx] *
+                                                self.swiping_height))
                 @ RT_model_1D.calc_direct_beam_intensity(self, height)
                 @ phase_func
             )
@@ -444,11 +444,7 @@ class RT_model_1D(object):
             scat = RT_model_1D.scattering_source_term(self, height)
             planck = RT_model_1D.planck_source_term(self, height)
             # id starts at 0 for idx 1 from height at rad field!
-            rad_field[id + 1] = (
-                ext
-                + self.use_scat * scat
-                + self.use_planck * planck
-            )
+            rad_field[id + 1] = ext + self.use_scat * scat + self.use_planck * planck
 
         # invert the rad_field for the uplooking case
         return np.flipud(rad_field)

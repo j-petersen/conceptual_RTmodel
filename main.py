@@ -54,25 +54,34 @@ def test(rt):
     # fig.savefig('plots/height_scattering_source.png', dpi=300)
 
 
-def plotting_radiation_height(rt):
-    rad_field = rt.evaluate_radiation_field()[:,1]
+def plotting_radiation_height(rt, stokes_dim = None):
+    rad_field = rt.evaluate_radiation_field()[:,:]
     height_field = rt.get_receiver_viewing_field()
 
     max_height = 200
     height_level = None
+    if not stokes_dim:
+        stokes_dim = np.shape(rad_field)[1]
 
+    labels = ['I', 'Q', 'U', 'V']
     fig, ax = plt.subplots()
-    ax.plot(rad_field, f.m2km(height_field))
+    for i in range(stokes_dim):
+        ax.plot(rad_field[:,i], f.m2km(height_field), label=labels[i])
     if height_level is not None:
         ax.axhline(height_level, alpha=0.7)
 
     if max_height is not None:
         ax.set_ylim(0, max_height)
 
-    # ax.set_xlabel(r"Intensity / a.u.")
+    ax.set_title(rf"Receiver: h={rt.receiver_height}, " + \
+                rf"$\Theta$={(rt.receiver_elevation + 90) % 180}, " + \
+                rf"$\phi$={(rt.receiver_azimuth + 180) % 360}" + '\n'\
+                rf"Sun: $\Theta$={(rt.sun_elevation + 90) % 180}, " + \
+                rf"$\phi$={(rt.sun_azimuth + 180) % 360}",
+                fontdict = {'fontsize':12}, va='bottom')
     ax.set_xlabel(r"Intensity / $Wm^{-2}sr^{-1}m^{-1}$")
     ax.set_ylabel("height / km")
-
+    ax.legend()
     # fig.savefig('plots/height_intensity_from_ground', dpi=300)
 
 
@@ -123,6 +132,20 @@ def plot_phasefunction():
     #             fontdict = {'fontsize':16}, va='bottom')
     # fig.savefig('plots/rayleigh_phasefunc.png', dpi=300)
 
+
+def plot_deg_of_polarization(rt, receiver):
+    angles = np.linspace(0, 90, 19, endpoint=True)
+    receiver_field = np.empty((len(angles),4))
+    for id, angle in enumerate(angles):
+        rt.set_receiver(receiver.height, receiver.elevation, receiver.azimuth+angle)
+        receiver_field[id] = rt.evaluate_radiation_field()[0]
+
+    p = f.degree_of_polarization(receiver_field)
+    fig, ax = plt.subplots()
+    ax.plot(angles, p)
+    ax.set_xlabel(r"azimuth angle diff / deg")
+    ax.set_ylabel("degree of polarization")
+    fig.savefig('plots/deg_of_polarization', dpi=300)
 
 def plot_blue_red_sky(rt, sun, receiver, scaled=False):
     wavelenghs = np.array((400, 550, 700)) * 1e-9
@@ -213,13 +236,14 @@ def plot_sky_stationary_sun(rt, sun, receiver):
 if __name__ == "__main__":
     ty.plots.styles.use(["typhon", "typhon-dark"])
 
-    receiver = fRT.Receiver(height=0, ele=45, azi=180)
-    sun = fRT.Sun(ele=45, azi=180)
+    receiver = fRT.Receiver(height=0, ele=80, azi=0)
+    sun = fRT.Sun(ele=80, azi=90)
 
     model = model_setup(sun, receiver)
     # test(model)
     plotting_radiation_height(model)
     # plotting_radiation_at_viewingangle(model, sun, receiver)
+    # plot_deg_of_polarization(model, receiver)
     # plot_blue_red_sky(model, sun, receiver, scaled=True)
     # plot_phasefunction()
 
