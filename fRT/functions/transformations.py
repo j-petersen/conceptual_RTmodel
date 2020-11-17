@@ -5,6 +5,7 @@ __all__ = [
     "stokes_rotation_matrix",
     "transformation_angle",
     "transformed_rayleigh_scattering_matrix",
+    "convert_direction"
 ]
 
 
@@ -31,25 +32,25 @@ def transformation_angle(theta_in, theta_out, phi_in, phi_out):
 
     sigma1 = np.arccos(
         (
-            np.cos(np.deg2rad(theta_out))
-            - np.cos(np.deg2rad(theta_in)) * np.cos(np.deg2rad(theta_sca))
+                np.cos(np.deg2rad(theta_out))
+                - np.cos(np.deg2rad(theta_in)) * np.cos(np.deg2rad(theta_sca))
         )
         / (np.sin(np.deg2rad(theta_in))
-        * np.sin(np.deg2rad(theta_sca)))
+           * np.sin(np.deg2rad(theta_sca)))
     )
     sigma2 = np.arccos(
         (
-            np.cos(np.deg2rad(theta_in))
-            - np.cos(np.deg2rad(theta_out)) * np.cos(np.deg2rad(theta_sca))
+                np.cos(np.deg2rad(theta_in))
+                - np.cos(np.deg2rad(theta_out)) * np.cos(np.deg2rad(theta_sca))
         )
         / (np.sin(np.deg2rad(theta_out))
-        * np.sin(np.deg2rad(theta_sca)))
+           * np.sin(np.deg2rad(theta_sca)))
     )
     return np.rad2deg(sigma1), np.rad2deg(sigma2)
 
 
 def transformed_rayleigh_scattering_matrix(
-    theta_in, theta_out, phi_in, phi_out, stokes_dim=4
+        theta_in, theta_out, phi_in, phi_out, stokes_dim=4
 ):
     """The scattering matrix for the transport coordinate system.
 
@@ -64,36 +65,35 @@ def transformed_rayleigh_scattering_matrix(
     if phi_out < 0 and phi_out >= 360:
         raise ValueError("Phi out cannot be negative or >= 360")
 
-
     theta_sca = calc_scattering_angle(theta_in, theta_out, phi_in, phi_out)
     F = rayleigh_phasematrix(theta_sca)
 
-    P = np.zeros((stokes_dim,stokes_dim))
+    P = np.zeros((stokes_dim, stokes_dim))
 
     # for stokes dim = 1, we only need Z11 = F11
-    P[0,0] = F[0, 0]
+    P[0, 0] = F[0, 0]
     if stokes_dim == 1:
         return P.squeeze()
 
     #
     # Multiple cases have to be considered:
     #
-    ANGTOL_RAD = 1e-6 # absolut tolerenz for angle
+    ANGTOL_RAD = 1e-6  # absolut tolerenz for angle
     ANGTOL = np.rad2deg(ANGTOL_RAD)
 
     if (
-            abs(theta_sca) < ANGTOL             # forward scattering
-            or abs(theta_sca - 180) < ANGTOL   # backward scattering
+            abs(theta_sca) < ANGTOL  # forward scattering
+            or abs(theta_sca - 180) < ANGTOL  # backward scattering
             or abs(phi_in - phi_out) < ANGTOL  # inc and sca on meridian
             or abs(abs(phi_in - phi_out) - 360.) < ANGTOL
             or abs(abs(phi_in - phi_out) - 180.) < ANGTOL):
 
-        P[0,1], P[1,0], P[1,1] = F[0,1], F[1,0], F[1,1]
+        P[0, 1], P[1, 0], P[1, 1] = F[0, 1], F[1, 0], F[1, 1]
         if stokes_dim > 2:
-            P[2,2] = F[2,2]
+            P[2, 2] = F[2, 2]
             # other elements are 0
             if stokes_dim > 3:
-                P[2,3], P[3,2], P[3,3] = F[2,3], F[3,2], F[3,3]
+                P[2, 3], P[3, 2], P[3, 3] = F[2, 3], F[3, 2], F[3, 3]
                 # other elements are 0
     else:
         if theta_in < ANGTOL:
@@ -117,3 +117,50 @@ def transformed_rayleigh_scattering_matrix(
         P = L2 @ F @ L1
 
     return P[:stokes_dim, :stokes_dim]
+
+
+def sperical2cartesian(theta, phi, r=None):
+    if not r:
+        r = 1
+    theta_rad = np.deg2rad(theta)
+    phi_rad = np.deg2rad(phi)
+
+    x = r * np.sin(theta_rad) * np.cos(phi_rad)
+    y = r * np.sin(theta_rad) * np.sin(phi_rad)
+    z = r * np.cos(theta_rad)
+
+    return (x, y, z)
+
+
+def cartesian2sperical(x, y, z):
+    r = np.sqrt(x ** 2 + y ** 2 + z ** 2)
+    phi_rad = np.arctan2(y, x)
+    theta_rad = np.arccos(z / r)
+
+    theta = np.rad2deg(theta_rad)
+    phi = np.rad2deg(phi_rad)
+
+    return (theta, phi, r)
+
+
+def convert_direction(theta, phi):
+    """
+    Converts the direction.
+
+    Either from viewing into transport or vise versa.
+
+    Parameters
+    ----------
+    theta (deg) from 0 to 180
+    phi (deg) from 0 to 360
+
+    Returns
+    -------
+    theta (deg) from 0 to 180
+    phi (deg) from 0 to 360
+    """
+
+    x, y, z = sperical2cartesian(theta, phi)
+    theta, phi, _ = cartesian2sperical(-x, -y, -z)
+
+    return theta, phi

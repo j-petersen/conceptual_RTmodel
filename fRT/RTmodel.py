@@ -87,27 +87,27 @@ class RT_model_1D(object):
 
         self.scat_type = scattering_type
 
-    def toggle_planck_radiation(self, input):
+    def toggle_planck_radiation(self, setting=1):
         """Toggle the use of planck radiation in the model.
         The default is on (1).
         """
-        if input not in [0, 1, "on", "off"]:
+        if setting not in [0, 1, "on", "off"]:
             raise ValueError(
-                "The input for the toggle the use of planck "
+                "The setting for the toggle the use of planck "
                 'Radiation must "on" (1) or "off" (0)'
             )
-        self.use_planck = 1 if input == "on" else 0 if input == "off" else input
+        self.use_planck = 1 if setting == "on" else 0 if setting == "off" else setting
 
-    def toggle_scattering(self, input):
+    def toggle_scattering(self, setting=1):
         """Toggle the use of scattering in the model. (So k = abs_coef)
         The default is on (1).
         """
-        if input not in [0, 1, "on", "off"]:
+        if setting not in [0, 1, "on", "off"]:
             raise ValueError(
                 "The input for the toggle the us of scattering "
                 'in the model must "on" (1) or "off" (0)'
             )
-        self.use_scat = 1 if input == "on" else 0 if input == "off" else input
+        self.use_scat = 1 if setting == "on" else 0 if setting == "off" else setting
 
     def set_wavelenth(self, wavelength):
         """Sets the wavelength for the model instance.
@@ -169,10 +169,12 @@ class RT_model_1D(object):
         if azimuth < 0 or azimuth >= 360:
             raise ValueError("The azimuth cannot be negative or >= 360")
 
+        theta, phi = f.convert_direction(elevation, azimuth)
+
         idx, height = f.argclosest(f.km2m(height), self.height_array, return_value=True)
         self.receiver_height = height
-        self.receiver_elevation = (elevation + 90) % 180
-        self.receiver_azimuth = (azimuth + 180) % 360
+        self.receiver_elevation = theta
+        self.receiver_azimuth = phi
 
     def set_sun_position(self, elevation, azimuth, intensity=None):
         """Sets the elevation and azimuth angle of the sun and the intensity.
@@ -194,8 +196,10 @@ class RT_model_1D(object):
             if intensity < 0:
                 raise ValueError("The intensity cannot be negative")
 
-        self.sun_elevation = (elevation + 90) % 180
-        self.sun_azimuth = (azimuth + 180) % 360
+        theta, phi = f.convert_direction(elevation, azimuth)
+
+        self.sun_elevation = theta
+        self.sun_azimuth = phi
         if intensity is not None and self.sun_intensity is not None:
             print(
                 "The set sun intensity might not fit to the suns intensity \
@@ -282,7 +286,7 @@ class RT_model_1D(object):
             raise ValueError("The height cannot be negative")
 
         idx, height = f.argclosest(height, self.height_array, return_value=True)
-        angle = (self.sun_elevation + 90) % 180
+        angle, _ = f.convert_direction(self.sun_elevation, self.sun_azimuth)
 
         tau = np.zeros((self.stokes_dim, self.stokes_dim))
         for lvl in np.arange(len(self.height_array) - 1, idx - 1, -1):
@@ -367,7 +371,8 @@ class RT_model_1D(object):
     def create_receiver_viewing_field(self):
         """creates an empty array where the field will be evaluated"""
         height = self.receiver_height
-        angle = (self.receiver_elevation + 90) % 180  # revert in viewing direct
+        # revert in viewing direct
+        angle, _ = f.convert_direction(self.receiver_elevation, self.receiver_azimuth)
 
         if angle < 90:
             # from rec (at idx) to TOA (len(h.a.))
@@ -396,7 +401,8 @@ class RT_model_1D(object):
     def rad_field_initial_condition(self):
         """Returns the starting value based on where the reciever is looking"""
 
-        angle = (self.receiver_elevation + 90) % 180  # revert in viewing direct
+        # revert in viewing direct
+        angle, _ = f.convert_direction(self.receiver_elevation, self.receiver_azimuth)
         # Looking at the sky
         if angle < 90:
             I_init = (

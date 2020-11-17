@@ -67,17 +67,22 @@ def plotting_radiation_height(rt, stokes_dim = None):
     fig, ax = plt.subplots()
     for i in range(stokes_dim):
         ax.plot(rad_field[:,i], f.m2km(height_field), label=labels[i])
+    ax.plot(np.sqrt(rad_field[:,1]**2 + rad_field[:,2]**2 + rad_field[:,3]**2),
+            f.m2km(height_field), label = "deg of pol")
     if height_level is not None:
         ax.axhline(height_level, alpha=0.7)
 
     if max_height is not None:
         ax.set_ylim(0, max_height)
 
+    sun_theta, sun_phi = f.convert_direction(rt.sun_elevation, rt.sun_azimuth)
+    rec_theta, rec_phi = f.convert_direction(rt.receiver_elevation, rt.receiver_azimuth)
+
     ax.set_title(rf"Receiver: h={rt.receiver_height}, " + \
-                rf"$\Theta$={(rt.receiver_elevation + 90) % 180}, " + \
-                rf"$\phi$={(rt.receiver_azimuth + 180) % 360}" + '\n'\
-                rf"Sun: $\Theta$={(rt.sun_elevation + 90) % 180}, " + \
-                rf"$\phi$={(rt.sun_azimuth + 180) % 360}",
+                rf"$\Theta$={rec_theta}, " + \
+                rf"$\phi$={np.round(rec_phi,2)}" + '\n'\
+                rf"Sun: $\Theta$={sun_theta}, " + \
+                rf"$\phi$={sun_phi}",
                 fontdict = {'fontsize':12}, va='bottom')
     ax.set_xlabel(r"Intensity / $Wm^{-2}sr^{-1}m^{-1}$")
     ax.set_ylabel("height / km")
@@ -148,7 +153,7 @@ def plot_deg_of_polarization(rt, receiver):
     fig.savefig('plots/deg_of_polarization', dpi=300)
 
 def plot_blue_red_sky(rt, sun, receiver, scaled=False):
-    wavelenghs = np.array((400, 550, 700)) * 1e-9
+    wavelenghs = np.array((450, 550, 650)) * 1e-9
     angles = np.arange(45, 90, 1)
     rad_field = np.empty((len(wavelenghs), len(angles)))
     for id_wave, wavelengh in enumerate(wavelenghs):
@@ -193,7 +198,7 @@ def plot_sky_stationary_sun(rt, sun, receiver):
     azimuths = np.arange(
         sun.azimuth - 60, sun.azimuth + 60 + angle_resolution, angle_resolution)
 
-    wavelengths = np.array((700, 550, 400)) * 1e-9
+    wavelengths = np.array((650, 550, 450)) * 1e-9
 
     rad_field = np.empty((len(elevations), len(azimuths), len(wavelengths)))
     counter = 1
@@ -236,8 +241,8 @@ def plot_sky_stationary_sun(rt, sun, receiver):
 if __name__ == "__main__":
     ty.plots.styles.use(["typhon", "typhon-dark"])
 
-    receiver = fRT.Receiver(height=0, ele=80, azi=0)
-    sun = fRT.Sun(ele=80, azi=90)
+    receiver = fRT.Receiver(height=0, ele=45, azi=0)
+    sun = fRT.Sun(ele=45, azi=0)
 
     model = model_setup(sun, receiver)
     # test(model)
